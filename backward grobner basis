@@ -1,0 +1,119 @@
+import random
+from copy import deepcopy
+
+# =====================================================
+# ================= USER CONTROLS =====================
+# =====================================================
+
+NUM_VARIABLES = 19
+NUM_GENERATORS = 20
+
+NUM_SAMPLES = 5 # <-- HOW MANY IDEALS
+NUM_MESS_OPS = 2          # <-- HOW MESSED UP
+
+MAX_TERMS = 100
+MAX_MON_DEG = 100
+COEFF_RANGE = (-100, 100)
+
+OUTPUT_FILE = "data_backg_1.txt"
+
+# =====================================================
+# ================= POLYNOMIAL UTILS =================
+# =====================================================
+
+def random_coeff():
+    c = 0
+    while c == 0:
+        c = random.randint(*COEFF_RANGE)
+    return c
+
+def random_monomial(n):
+    return tuple(random.randint(0, MAX_MON_DEG) for _ in range(n))
+
+def sort_poly(p):
+    return sorted(p, key=lambda t: t[1], reverse=True)
+
+def random_polynomial(n):
+    d = {}
+    for _ in range(random.randint(1, MAX_TERMS)):
+        m = random_monomial(n)
+        d[m] = d.get(m, 0) + random_coeff()
+    return sort_poly([(c, m) for m, c in d.items() if c != 0])
+
+def add_poly(p, q):
+    d = {}
+    for c, m in p + q:
+        d[m] = d.get(m, 0) + c
+    return sort_poly([(c, m) for m, c in d.items() if c != 0])
+
+def multiply_poly(p, q):
+    d = {}
+    for c1, m1 in p:
+        for c2, m2 in q:
+            m = tuple(a + b for a, b in zip(m1, m2))
+            d[m] = d.get(m, 0) + c1 * c2
+    return sort_poly([(c, m) for m, c in d.items() if c != 0])
+
+# =====================================================
+# ====== UNIMODULAR GENERATOR OPERATIONS ==============
+# =====================================================
+
+def mess_up_generators(G, num_vars, steps):
+    """
+    Apply 'steps' many operations of the form:
+        g_i <- g_i + p * g_j
+    """
+    F = deepcopy(G)
+    m = len(F)
+
+    for _ in range(steps):
+        i, j = random.sample(range(m), 2)
+        p = random_polynomial(num_vars)
+        F[i] = add_poly(F[i], multiply_poly(p, F[j]))
+
+    return F
+
+# =====================================================
+# =========== SHAPE POSITION GB =======================
+# =====================================================
+
+def shape_position_gb():
+    G = []
+
+    # univariate polynomial in x_n
+    deg = random.randint(1, 3)
+    p = []
+    for d in range(deg, -1, -1):
+        mon = [0] * (NUM_VARIABLES - 1) + [d]
+        p.append((random_coeff(), tuple(mon)))
+    G.append(sort_poly(p))
+
+    # x_i - x_n
+    for i in range(NUM_GENERATORS - 1):
+        mon1 = [0] * NUM_VARIABLES
+        mon2 = [0] * NUM_VARIABLES
+        mon1[i] = 1
+        mon2[-1] = 1
+        G.append(sort_poly([(1, tuple(mon1)), (-1, tuple(mon2))]))
+
+    return G
+
+# =====================================================
+# ===================== OUTPUT ========================
+# =====================================================
+
+def format_poly(p):
+    return "(" + ",".join(f"({c},{m})" for c, m in p) + ")"
+
+# =====================================================
+# ===================== MAIN ==========================
+# =====================================================
+
+with open(OUTPUT_FILE, "w") as f:
+    for _ in range(NUM_SAMPLES):
+
+        G = shape_position_gb()
+        F = mess_up_generators(G, NUM_VARIABLES, NUM_MESS_OPS)
+
+        for g, h in zip(G, F):
+            f.write(f"{format_poly(g)} | {format_poly(h)}\n")
